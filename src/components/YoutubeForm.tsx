@@ -1,4 +1,4 @@
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, FieldErrors } from "react-hook-form";
 //useFieldArray is used for handling Dynamic Form Fields
 
 import { DevTool } from '@hookform/devtools';
@@ -28,6 +28,7 @@ type FormValues = {
 
 const YoutubeForm = () => {
   const form = useForm<FormValues>({
+    mode: "all",
     defaultValues : {
       username: "",
       email: "",
@@ -55,8 +56,12 @@ const YoutubeForm = () => {
     */
     
   });
-  const { register, control, handleSubmit, watch, formState } = form;
-  const { errors } = formState;
+  const { register, control, handleSubmit, watch, reset, formState, getValues, setValue, trigger } = form;
+  const { errors, touchedFields, dirtyFields, isDirty, isValid, isSubmitting, isSubmitted, isSubmitSuccessful, submitCount } = formState;
+
+  console.log(touchedFields, dirtyFields);
+
+  console.log(isSubmitting, isSubmitted, isSubmitSuccessful, submitCount);
 
   //useFieldArray returns an array of fields which we can render in the JSX
   const { fields, append, remove } = useFieldArray({
@@ -64,12 +69,14 @@ const YoutubeForm = () => {
     control: control
   })
 
-  console.log(errors);
-
   //const {name, ref, onChange, onBlur} = register("username"); 
 
   const onSubmit = (data: FormValues) => {
     console.log("Form Submitted", data);
+  }
+
+  const onError = (errors: FieldErrors<FormValues>) => {
+    console.log("Form errors", errors);
   }
 
   /************** Watching Field Values Starts *******************/
@@ -97,13 +104,40 @@ const YoutubeForm = () => {
   /******************Watching Field Values Ends*********************/
   
 
+  const handleGetValues = () => {
+    console.log(getValues()) //getting all the field values
+    //console.log(getValues("username")) (getting specific field value)
+    //console.log(getValues(["username", "email"])) (getting multiple field values)
+  }
+
+  const handleSetValue = () => {
+    setValue("username", "");
+
+    /*
+      setValue("username", "", {
+        shouldValidate: true,
+        shouldTouch: true,
+        shouldDirty: true
+      })
+    */
+  }
+  //setValue() takes two argument, first is fieldname, second is value to set
+
+  //It is important to note that calling setValue() does not affect the state of the field such as dirty, touched or validation. If we want to change field state as if a user is interacting then we need to pass a third argument (an options object) to the setValue method.
+
+  useEffect(() => {
+    if (isSubmitSuccessful) {
+      reset()
+    }
+  }, [isSubmitSuccessful, reset])
+
   
   return (
     <div className="form-container">
         <h1><span className="heading-text-1">React</span> <span className="heading-text-2">Hook</span> <span className="heading-text-3">Form</span> <span className="heading-text-4">Tutorial</span></h1>
         <h2>Watched Value: {watchUsername}</h2>
 
-        <form onSubmit={handleSubmit(onSubmit)} noValidate>
+        <form onSubmit={handleSubmit(onSubmit, onError)} noValidate>
             
             {/* Username Field Starts */}
             <div className="form-control">
@@ -159,7 +193,13 @@ const YoutubeForm = () => {
                       return (
                         !fieldValue.endsWith("baddomain.com") || 'This domain is not supported'
                       )
-                    } 
+                    }, 
+                    //Async Validation in React Hook Form
+                    emailAvailable:async (fieldValue) => {
+                      const response = await fetch(`https://jsonplaceholder.typicode.com/users?email=${fieldValue}`);
+                      const data = await response.json();
+                      return data.length === 0 || "Email already exists"
+                    }
                   }
                 })}
               />
@@ -177,7 +217,8 @@ const YoutubeForm = () => {
                   required: {
                     value: true,
                     message: "Channel is required"
-                  }
+                  },
+                  disabled: true
                 })}
               />
               <p className="error">{errors.channel?.message}</p>
@@ -327,7 +368,19 @@ const YoutubeForm = () => {
             </div>
             {/* Date Input Example Ends */}
 
-            <button>Submit</button>
+            <button disabled={!isDirty || !isValid || isSubmitting}>Submit</button>
+            <button type="button" onClick={() => reset()}>Reset</button>
+            <button type="button" onClick={handleGetValues}>Get Values</button>
+            <button type="button" onClick={handleSetValue}>Set Value</button>
+
+            <button type="button" onClick={() => trigger()}>Trigger Validations Manually</button>
+            {/* 
+              How to trigger Validation manually for a particular form field 
+              
+              <button type="button" onClick={() => trigger("username")}>Trigger Validation on Username Field</button>
+            */}
+
+
         </form>
         <DevTool control={control}/> {/* tying together YoutubeForm with Devtools */}
     </div>
@@ -378,5 +431,19 @@ methods that can be used with forms.
   can be accessed on the form object.
 
   register method allows us to register a form control with react-hook-form.
+
+  unlike watch, getValues will not trigger re-renders or subscribe to input changes, making it better option to get form values when user clicks on a button or performs a specific action
+
+  Form Submission State: It is useful for tracking the progress and outcome of form submission
+  1. isSubmitting
+  2. isSubmitted
+  3. isSubmitSuccessful
+  4. submitCount
     
+
+  reset() sets the form fields to their default values, it does not clears the field, it just sets the form fields to their default values.
+
+  it is recommended to not call the reset() method inside submit function.
+
+  trigger is used to manually trigger validations.
 */
